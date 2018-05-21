@@ -338,12 +338,7 @@ private:
 
    std::string pattern;
    control c;
-   static bool is_ieee_double;
-   static bool is_ieee_float;
 };
-
-bool struc::is_ieee_double = false;
-bool struc::is_ieee_float = false;
 
 template <typename I>
 inline typename std::enable_if<std::is_integral<I>::value, void>::type
@@ -545,6 +540,24 @@ template <typename F>
 inline typename std::enable_if<std::is_same<F, float>::value, bool>::type
    struc::is_ieee()
 {
+   static std::atomic_flag flag = ATOMIC_FLAG_INIT;
+   static bool is_ieee_float = false;
+   if (!flag.test_and_set())
+   {
+      if (sizeof(double) == 8)
+      {
+         float x = 16711938.0f;
+ #ifdef BOOST_BIG_ENDIAN
+         is_ieee_float = memcmp(&x, "\x4b\x7f\x01\x02", 4) == 0;
+ #else
+         is_ieee_float = memcmp(&x, "\x02\x01\x7f\x4b", 4) == 0;
+ #endif
+      }
+      else
+      {
+         is_ieee_float = false;
+      }
+   }
    return is_ieee_float;
 }
 
@@ -552,6 +565,26 @@ template <typename F>
 inline typename std::enable_if<std::is_same<F, double>::value, bool>::type
    struc::is_ieee()
 {
+   static std::atomic_flag flag = ATOMIC_FLAG_INIT;
+   static bool is_ieee_double = false;
+   if (!flag.test_and_set())
+   {
+      if (sizeof(double) == 8)
+      {
+         double x = 9006104071832581.0;
+ #ifdef BOOST_BIG_ENDIAN
+         is_ieee_double =
+            memcmp(&x, "\x43\x3f\xff\x01\x02\x03\x04\x05", 8) == 0;
+ #else
+         is_ieee_double =
+            memcmp(&x, "\x05\x04\x03\x02\x01\xff\x3f\x43", 8) == 0;
+ #endif
+      }
+      else
+      {
+         is_ieee_double = false;
+      }
+   }
    return is_ieee_double;
 }
 
@@ -1610,38 +1643,6 @@ inline struc::struc(const std::string& pattern_)
 : pattern(pattern_)
 , c(native)
 {
-   static std::atomic_flag flag = ATOMIC_FLAG_INIT;
-   if (!flag.test_and_set())
-   {
-      if (sizeof(double) == 8)
-      {
-         double x = 9006104071832581.0;
-#ifdef BOOST_BIG_ENDIAN
-         is_ieee_double =
-            memcmp(&x, "\x43\x3f\xff\x01\x02\x03\x04\x05", 8) == 0;
-#else
-         is_ieee_double =
-            memcmp(&x, "\x05\x04\x03\x02\x01\xff\x3f\x43", 8) == 0;
-#endif
-      }
-      else
-      {
-         is_ieee_double = false;
-      }
-      if (sizeof(float) == 4)
-      {
-         float x = 16711938.0f;
-#ifdef BOOST_BIG_ENDIAN
-         is_ieee_float = memcmp(&x, "\x4b\x7f\x01\x02", 4) == 0;
-#else
-         is_ieee_float = memcmp(&x, "\x02\x01\x7f\x4b", 4) == 0;
-#endif
-      }
-      else
-      {
-         is_ieee_float = false;
-      }
-   }
    if (pattern.find_first_of("@=<>!") == 0)
    {
       switch (pattern[0])
@@ -1758,7 +1759,10 @@ inline size_t struc::calcsize_helper(std::pair<size_t, size_t>& pos,
                                 + type);
       }
       size += pad + sz * num;
-      no_of_items += num;
+      if (type != 'x')
+      {
+         no_of_items += num;
+      }
       auto alignment = c == native ? native_alignment(type) : 0;
       pos.second = std::max(pos.second, alignment);
    }
