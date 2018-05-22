@@ -468,6 +468,36 @@ TEST_CASE("C-style strings", "[struc}")
    delete[] pbuf;
 }
 
+TEST_CASE("Arrays", "[struc]")
+{
+   std::string pattern("5l");
+   long l[5] = {1, 2, 3, 4, 5};
+   auto v = struc::pack(pattern, l);
+   REQUIRE(v.size() == 5 * sizeof(long));
+   long l_[5];
+   struc::unpack(pattern, &v[0], l_);
+   CHECK(l[0] == l_[0]);
+   CHECK(l[1] == l_[1]);
+   CHECK(l[2] == l_[2]);
+   CHECK(l[3] == l_[3]);
+   CHECK(l[4] == l_[4]);
+   pattern = "5c";
+   char c[5] = {1, 2, 3, 4, 5};
+   v = struc::pack(pattern, c);
+   REQUIRE(v.size() == 5);
+   char c_[5];
+   struc::unpack(pattern, &v[0], c_);
+   CHECK(c[0] == c_[0]);
+   CHECK(c[1] == c_[1]);
+   CHECK(c[2] == c_[2]);
+   CHECK(c[3] == c_[3]);
+   CHECK(c[4] == c_[4]);
+   char c__[3] = {1, 2, 3};
+   CHECK_THROWS_AS(struc::pack(pattern, c__), std::underflow_error);
+   char c___[6] = {1, 2, 3, 4, 5, 6};
+   CHECK_THROWS_AS(struc::pack(pattern, c___), std::overflow_error);
+}
+
 TEST_CASE("Too many arguments throws exception", "[struc]")
 {
    typedef std::tuple<short, short, short, short, short> T;

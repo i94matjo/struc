@@ -184,15 +184,32 @@ private:
 
    template <typename I>
    static typename std::enable_if<std::is_arithmetic<I>::value, void>::type
-      pack_scalar(
-         control c, char type, char* buffer, size_t& offset, const I& i);
+      pack_scalar(control c,
+                  std::pair<size_t, char>& cur,
+                  char* buffer,
+                  size_t& offset,
+                  const I& i);
+
+   template <typename A>
+   static typename std::enable_if<std::is_array<A>::value
+                                     && !std::is_constructible<std::string,
+                                                               A>::value,
+                                  void>::type
+      pack_scalar(control c,
+                  std::pair<size_t, char>& cur,
+                  char* buffer,
+                  size_t& offset,
+                  const A& a);
 
    template <typename S>
    static typename std::enable_if<std::is_constructible<std::string, S>::value
                                      && !std::is_null_pointer<S>::value,
                                   void>::type
-      pack_scalar(
-         control c, char type, char* buffer, size_t& offset, const S& s);
+      pack_scalar(control c,
+                  std::pair<size_t, char>& cur,
+                  char* buffer,
+                  size_t& offset,
+                  const S& s);
 
    template <typename P>
    static
@@ -201,8 +218,11 @@ private:
                                  || std::is_null_pointer<P>::value
                                  || std::is_member_pointer<P>::value,
                               void>::type
-      pack_scalar(
-         control c, char type, char* buffer, size_t& offset, const P& p);
+      pack_scalar(control c,
+                  std::pair<size_t, char>& cur,
+                  char* buffer,
+                  size_t& offset,
+                  const P& p);
 
    template <typename F>
    static typename std::enable_if<std::is_same<F, float>::value, void>::type
@@ -245,22 +265,42 @@ private:
 
    template <typename I>
    static typename std::enable_if<std::is_arithmetic<I>::value, void>::type
-      unpack_scalar(
-         control c, char type, const char* buffer, size_t& offset, I& i);
+      unpack_scalar(control c,
+                    std::pair<size_t, char>& cur,
+                    const char* buffer,
+                    size_t& offset,
+                    I& i);
+
+   template <typename A>
+   static typename std::enable_if<std::is_array<A>::value
+                                     && !std::is_constructible<std::string,
+                                                               A>::value,
+                                  void>::type
+      unpack_scalar(control c,
+                    std::pair<size_t, char>& cur,
+                    const char* buffer,
+                    size_t& offset,
+                    A& a);
 
    template <typename S>
    static
       typename std::enable_if<std::is_same<std::string, S>::value, void>::type
-      unpack_scalar(
-         control c, char type, const char* buffer, size_t& offset, S& s);
+      unpack_scalar(control c,
+                    std::pair<size_t, char>& cur,
+                    const char* buffer,
+                    size_t& offset,
+                    S& s);
 
    template <typename S>
    static typename std::enable_if<std::is_constructible<std::string, S>::value
                                      && !std::is_null_pointer<S>::value
                                      && !std::is_same<std::string, S>::value,
                                   void>::type
-      unpack_scalar(
-         control c, char type, const char* buffer, size_t& offset, S& s);
+      unpack_scalar(control c,
+                    std::pair<size_t, char>& cur,
+                    const char* buffer,
+                    size_t& offset,
+                    S& s);
 
    template <typename P>
    static
@@ -268,8 +308,11 @@ private:
                                && !std::is_constructible<std::string, P>::value)
                                  || std::is_member_pointer<P>::value,
                               void>::type
-      unpack_scalar(
-         control c, char type, const char* buffer, size_t& offset, P& p);
+      unpack_scalar(control c,
+                    std::pair<size_t, char>& cur,
+                    const char* buffer,
+                    size_t& offset,
+                    P& p);
 
    template <typename T>
    size_t pack_helper(std::pair<size_t, size_t>& pos,
@@ -547,11 +590,11 @@ inline typename std::enable_if<std::is_same<F, float>::value, bool>::type
       if (sizeof(double) == 8)
       {
          float x = 16711938.0f;
- #ifdef BOOST_BIG_ENDIAN
+#ifdef BOOST_BIG_ENDIAN
          is_ieee_float = memcmp(&x, "\x4b\x7f\x01\x02", 4) == 0;
- #else
+#else
          is_ieee_float = memcmp(&x, "\x02\x01\x7f\x4b", 4) == 0;
- #endif
+#endif
       }
       else
       {
@@ -572,13 +615,13 @@ inline typename std::enable_if<std::is_same<F, double>::value, bool>::type
       if (sizeof(double) == 8)
       {
          double x = 9006104071832581.0;
- #ifdef BOOST_BIG_ENDIAN
+#ifdef BOOST_BIG_ENDIAN
          is_ieee_double =
             memcmp(&x, "\x43\x3f\xff\x01\x02\x03\x04\x05", 8) == 0;
- #else
+#else
          is_ieee_double =
             memcmp(&x, "\x05\x04\x03\x02\x01\xff\x3f\x43", 8) == 0;
- #endif
+#endif
       }
       else
       {
@@ -832,10 +875,13 @@ inline typename std::enable_if<std::is_floating_point<T>::value, void>::type
 
 template <typename I>
 inline typename std::enable_if<std::is_arithmetic<I>::value, void>::type
-   struc::pack_scalar(
-      control c, char type, char* buffer, size_t& offset, const I& i)
+   struc::pack_scalar(control c,
+                      std::pair<size_t, char>& cur,
+                      char* buffer,
+                      size_t& offset,
+                      const I& i)
 {
-   switch (type)
+   switch (cur.second)
    {
    case 'c':
    case 'b':
@@ -885,7 +931,40 @@ inline typename std::enable_if<std::is_arithmetic<I>::value, void>::type
                     pack_non_native<I, double, uint64_t>(c, buffer, offset, i);
       break;
    default:
-      throw std::logic_error(std::string("Encountered illegal type: ") + type);
+      throw std::logic_error(std::string("Encountered illegal type: ")
+                             + cur.second);
+   }
+   cur.first--;
+}
+
+template <typename A>
+inline
+   typename std::enable_if<std::is_array<A>::value
+                              && !std::is_constructible<std::string, A>::value,
+                           void>::type
+   struc::pack_scalar(control c,
+                      std::pair<size_t, char>& cur,
+                      char* buffer,
+                      size_t& offset,
+                      const A& a)
+{
+   if (std::extent<A>::value < cur.first)
+   {
+      throw std::underflow_error(std::string("Provided array too small (")
+                                 + std::to_string(std::extent<A>::value)
+                                 + "), expected "
+                                 + std::to_string(cur.first));
+   }
+   else if (std::extent<A>::value > cur.first)
+   {
+      throw std::overflow_error(std::string("Provided array too large (")
+                                + std::to_string(std::extent<A>::value)
+                                + "), expected "
+                                + std::to_string(cur.first));
+   }
+   for (size_t i = 0; i < std::extent<A>::value; ++i)
+   {
+      pack_scalar(c, cur, buffer, offset, a[i]);
    }
 }
 
@@ -893,18 +972,52 @@ template <typename S>
 inline typename std::enable_if<std::is_constructible<std::string, S>::value
                                   && !std::is_null_pointer<S>::value,
                                void>::type
-   struc::pack_scalar(
-      control, char type, char* buffer, size_t& offset, const S& s)
+   struc::pack_scalar(control c,
+                      std::pair<size_t, char>& cur,
+                      char* buffer,
+                      size_t& offset,
+                      const S& s)
 {
-   if (type == 's' || type == 'p')
+   switch (cur.second)
+   {
+   case 's':
+   case 'p':
    {
       std::string s_(s);
       std::memcpy(buffer + offset, s_.data(), s_.size());
       offset += s_.size();
+      cur.first--;
+      break;
    }
-   else
+   case 'c':
    {
-      throw std::logic_error(std::string("Encountered illegal type: ") + type);
+      if (!std::is_array<S>::value)
+      {
+         throw std::logic_error("Expected array of char");
+      }
+      if (std::extent<S>::value < cur.first)
+      {
+         throw std::underflow_error(std::string("Provided array too small (")
+                                    + std::to_string(std::extent<S>::value)
+                                    + "), expected "
+                                    + std::to_string(cur.first));
+      }
+      else if (std::extent<S>::value > cur.first)
+      {
+         throw std::overflow_error(std::string("Provided array too large (")
+                                   + std::to_string(std::extent<S>::value)
+                                   + "), expected "
+                                   + std::to_string(cur.first));
+      }
+      for (size_t i = 0; i < std::extent<S>::value; ++i)
+      {
+         pack_scalar(c, cur, buffer, offset, s[i]);
+      }
+      break;
+   }
+   default:
+      throw std::logic_error(std::string("Encountered illegal type: ")
+                             + cur.second);
    }
 }
 
@@ -915,10 +1028,13 @@ inline
                               || std::is_null_pointer<P>::value
                               || std::is_member_pointer<P>::value,
                            void>::type
-   struc::pack_scalar(
-      control c, char type, char* buffer, size_t& offset, const P& p)
+   struc::pack_scalar(control c,
+                      std::pair<size_t, char>& cur,
+                      char* buffer,
+                      size_t& offset,
+                      const P& p)
 {
-   if (type == 'P')
+   if (cur.second == 'P')
    {
       if (c == native)
       {
@@ -930,6 +1046,7 @@ inline
          }
          std::memcpy(buffer + offset, &p_, sizeof(p_));
          offset += sizeof(p_);
+         cur.first--;
       }
       else
       {
@@ -939,7 +1056,8 @@ inline
    }
    else
    {
-      throw std::logic_error(std::string("Encountered illegal type: ") + type);
+      throw std::logic_error(std::string("Encountered illegal type: ")
+                             + cur.second);
    }
 }
 
@@ -952,8 +1070,7 @@ inline size_t struc::pack_helper(std::pair<size_t, size_t>& pos,
 {
    if (cur.first > 0)
    {
-      pack_scalar(c, cur.second, buffer, offset, t);
-      cur.first--;
+      pack_scalar(c, cur, buffer, offset, t);
       auto alignment = c == native ? native_alignment(cur.second) : 0;
       pos.second = std::max(pos.second, alignment);
       return 1;
@@ -999,10 +1116,9 @@ inline size_t struc::pack_helper(std::pair<size_t, size_t>& pos,
       }
       if (cur.first > 0)
       {
-         pack_scalar(c, cur.second, buffer, offset, t);
+         pack_scalar(c, cur, buffer, offset, t);
          auto alignment = c == native ? native_alignment(cur.second) : 0;
          pos.second = std::max(pos.second, alignment);
-         cur.first--;
       }
       else if (c == native)
       {
@@ -1335,10 +1451,13 @@ inline typename std::enable_if<std::is_floating_point<T>::value, void>::type
 
 template <typename I>
 inline typename std::enable_if<std::is_arithmetic<I>::value, void>::type
-   struc::unpack_scalar(
-      control c, char type, const char* buffer, size_t& offset, I& i)
+   struc::unpack_scalar(control c,
+                        std::pair<size_t, char>& cur,
+                        const char* buffer,
+                        size_t& offset,
+                        I& i)
 {
-   switch (type)
+   switch (cur.second)
    {
    case 'c':
    case 'b':
@@ -1389,24 +1508,65 @@ inline typename std::enable_if<std::is_arithmetic<I>::value, void>::type
          unpack_non_native<I, double, uint64_t>(c, buffer, offset, i);
       break;
    default:
-      throw std::logic_error(std::string("Encountered illegal type: ") + type);
+      throw std::logic_error(std::string("Encountered illegal type: ")
+                             + cur.second);
+   }
+   cur.first--;
+}
+
+template <typename A>
+inline
+   typename std::enable_if<std::is_array<A>::value
+                              && !std::is_constructible<std::string, A>::value,
+                           void>::type
+   struc::unpack_scalar(control c,
+                        std::pair<size_t, char>& cur,
+                        const char* buffer,
+                        size_t& offset,
+                        A& a)
+{
+   if (std::extent<A>::value < cur.first)
+   {
+      throw std::underflow_error(std::string("Provided array too small (")
+                                 + std::to_string(std::extent<A>::value)
+                                 + "), expected "
+                                 + std::to_string(cur.first));
+   }
+   else if (std::extent<A>::value > cur.first)
+   {
+      throw std::overflow_error(std::string("Provided array too large (")
+                                + std::to_string(std::extent<A>::value)
+                                + "), expected "
+                                + std::to_string(cur.first));
+   }
+   for (size_t i = 0; i < std::extent<A>::value; ++i)
+   {
+      unpack_scalar(c, cur, buffer, offset, a[i]);
    }
 }
 
 template <typename S>
 inline typename std::enable_if<std::is_same<std::string, S>::value, void>::type
-   struc::unpack_scalar(
-      control, char type, const char* buffer, size_t& offset, S& s)
+   struc::unpack_scalar(control,
+                        std::pair<size_t, char>& cur,
+                        const char* buffer,
+                        size_t& offset,
+                        S& s)
 {
-   if (type == 's' || type == 'p')
+   switch (cur.second)
+   {
+   case 's':
+   case 'p':
    {
       size_t sz = s.size();
       s = std::string(buffer + offset, sz);
       offset += sz;
+      cur.first--;
+      break;
    }
-   else
-   {
-      throw std::logic_error(std::string("Encountered illegal type: ") + type);
+   default:
+      throw std::logic_error(std::string("Encountered illegal type: ")
+                             + cur.second);
    }
 }
 
@@ -1415,18 +1575,52 @@ inline typename std::enable_if<std::is_constructible<std::string, S>::value
                                   && !std::is_null_pointer<S>::value
                                   && !std::is_same<std::string, S>::value,
                                void>::type
-   struc::unpack_scalar(
-      control, char type, const char* buffer, size_t& offset, S& s)
+   struc::unpack_scalar(control c,
+                        std::pair<size_t, char>& cur,
+                        const char* buffer,
+                        size_t& offset,
+                        S& s)
 {
-   if (type == 's' || type == 'p')
+   switch (cur.second)
+   {
+   case 's':
+   case 'p':
    {
       size_t sz = strlen(s);
       std::memcpy(s, buffer + offset, sz);
       offset += sz;
+      cur.first--;
+      break;
    }
-   else
+   case 'c':
    {
-      throw std::logic_error(std::string("Encountered illegal type: ") + type);
+      if (!std::is_array<S>::value)
+      {
+         throw std::logic_error("Expected array of char");
+      }
+      if (std::extent<S>::value < cur.first)
+      {
+         throw std::underflow_error(std::string("Provided array too small (")
+                                    + std::to_string(std::extent<S>::value)
+                                    + "), expected "
+                                    + std::to_string(cur.first));
+      }
+      else if (std::extent<S>::value > cur.first)
+      {
+         throw std::overflow_error(std::string("Provided array too large (")
+                                   + std::to_string(std::extent<S>::value)
+                                   + "), expected "
+                                   + std::to_string(cur.first));
+      }
+      for (size_t i = 0; i < std::extent<S>::value; ++i)
+      {
+         unpack_scalar(c, cur, buffer, offset, s[i]);
+      }
+      break;
+   }
+   default:
+      throw std::logic_error(std::string("Encountered illegal type: ")
+                             + cur.second);
    }
 }
 
@@ -1436,10 +1630,13 @@ inline
                             && !std::is_constructible<std::string, P>::value)
                               || std::is_member_pointer<P>::value,
                            void>::type
-   struc::unpack_scalar(
-      control c, char type, const char* buffer, size_t& offset, P& p)
+   struc::unpack_scalar(control c,
+                        std::pair<size_t, char>& cur,
+                        const char* buffer,
+                        size_t& offset,
+                        P& p)
 {
-   if (type == 'P')
+   if (cur.second == 'P')
    {
       if (c == native)
       {
@@ -1452,6 +1649,7 @@ inline
          std::memcpy(&p_, buffer + offset, sizeof(p_));
          p = static_cast<P>(p_);
          offset += sizeof(p_);
+         cur.first--;
       }
       else
       {
@@ -1461,7 +1659,8 @@ inline
    }
    else
    {
-      throw std::logic_error(std::string("Encountered illegal type: ") + type);
+      throw std::logic_error(std::string("Encountered illegal type: ")
+                             + cur.second);
    }
 }
 
@@ -1474,8 +1673,7 @@ inline size_t struc::unpack_helper(std::pair<size_t, size_t>& pos,
 {
    if (cur.first > 0)
    {
-      unpack_scalar(c, cur.second, buffer, offset, t);
-      cur.first--;
+      unpack_scalar(c, cur, buffer, offset, t);
       auto alignment = c == native ? native_alignment(cur.second) : 0;
       pos.second = std::max(pos.second, alignment);
       return 1;
@@ -1521,10 +1719,9 @@ inline size_t struc::unpack_helper(std::pair<size_t, size_t>& pos,
       }
       if (cur.first > 0)
       {
-         unpack_scalar(c, cur.second, buffer, offset, t);
+         unpack_scalar(c, cur, buffer, offset, t);
          auto alignment = c == native ? native_alignment(cur.second) : 0;
          pos.second = std::max(pos.second, alignment);
-         cur.first--;
       }
       else if (c == native)
       {
